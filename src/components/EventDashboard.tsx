@@ -4,7 +4,7 @@ import { Camera, Image, Video, Users, Plus, X, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { storeEventData, getEventStatistics, getUserEvents, EventData, deleteEvent } from '../config/localEventStorage';
 import { s3Client, S3_BUCKET_NAME } from '../config/aws';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
+import { Upload } from '@aws-sdk/lib-storage';
 
 interface Event {
     id: string;
@@ -129,25 +129,27 @@ const EventDashboard = () => {
                 updatedAt: new Date().toISOString()
             };
 
-            // Create shared event folder for public access
+            // Create shared event folder structure
             const sharedFolderKey = `events/shared/${eventId}/`;
-            await s3Client.send(new PutObjectCommand({
-                Bucket: S3_BUCKET_NAME,
-                Key: sharedFolderKey,
-                Body: ''
-            }));
+            const folderPaths = [
+                sharedFolderKey,
+                `${sharedFolderKey}images/`,
+                `${sharedFolderKey}selfies/`
+            ];
 
-            // Create subfolders for images and selfies
-            await s3Client.send(new PutObjectCommand({
-                Bucket: S3_BUCKET_NAME,
-                Key: `${sharedFolderKey}images/`,
-                Body: ''
-            }));
-            await s3Client.send(new PutObjectCommand({
-                Bucket: S3_BUCKET_NAME,
-                Key: `${sharedFolderKey}selfies/`,
-                Body: ''
-            }));
+            // Create folders using Upload
+            for (const folderPath of folderPaths) {
+                const upload = new Upload({
+                    client: s3Client,
+                    params: {
+                        Bucket: S3_BUCKET_NAME,
+                        Key: folderPath,
+                        Body: '',
+                        ContentType: 'application/x-directory'
+                    }
+                });
+                await upload.done();
+            }
 
             const success = await storeEventData(eventData);
             if (success) {
@@ -156,7 +158,7 @@ const EventDashboard = () => {
                 setIsModalOpen(false);
                 setNewEvent({ id: '', name: '', date: '', description: '' });
                 setEventImage(null);
-                navigate(`/event/${eventId}`);
+                navigate(`/view-event/${eventId}`);
             }
         } catch (error) {
             console.error('Error creating event:', error);
