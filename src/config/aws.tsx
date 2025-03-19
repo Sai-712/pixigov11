@@ -15,7 +15,9 @@ export const s3Client = new S3Client({
     credentials: {
         accessKeyId: accessKeyId || '',
         secretAccessKey: secretAccessKey || '',
-    }
+    },
+    forcePathStyle: true,
+    maxAttempts: 3
 });
 
 // Initialize Rekognition client with proper error handling
