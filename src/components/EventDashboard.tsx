@@ -129,7 +129,7 @@ const EventDashboard = () => {
                 updatedAt: new Date().toISOString()
             };
 
-            // Create shared event folder structure
+            // Create shared event folder structure with proper error handling
             const sharedFolderKey = `events/shared/${eventId}/`;
             const folderPaths = [
                 sharedFolderKey,
@@ -137,18 +137,29 @@ const EventDashboard = () => {
                 `${sharedFolderKey}selfies/`
             ];
 
-            // Create folders using Upload
+            // Create folders using Upload with retries and error handling
             for (const folderPath of folderPaths) {
-                const upload = new Upload({
-                    client: s3Client,
-                    params: {
-                        Bucket: S3_BUCKET_NAME,
-                        Key: folderPath,
-                        Body: '',
-                        ContentType: 'application/x-directory'
+                try {
+                    const upload = new Upload({
+                        client: s3Client,
+                        params: {
+                            Bucket: S3_BUCKET_NAME,
+                            Key: folderPath,
+                            Body: '',
+                            ContentType: 'application/x-directory'
+                        },
+                        queueSize: 4,
+                        partSize: 1024 * 1024 * 5,
+                        leavePartsOnError: false
+                    });
+                    await upload.done();
+                } catch (uploadError: any) {
+                    console.error(`Error creating folder ${folderPath}:`, uploadError);
+                    if (uploadError.name === 'SignatureDoesNotMatch') {
+                        throw new Error('AWS authentication failed. Please check your credentials.');
                     }
-                });
-                await upload.done();
+                    throw uploadError;
+                }
             }
 
             const success = await storeEventData(eventData);
